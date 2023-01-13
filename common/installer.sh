@@ -110,6 +110,8 @@ check_system()
 		}
 		elif openrc_test; then
 			SYSTEM=openrc
+		elif [ -f "/bin/ndm" ]; then
+			SYSTEM=keenetic
 		else
 			echo system is not either systemd, openrc or openwrt based
 			echo easy installer can set up config settings but can\'t configure auto start
@@ -205,6 +207,9 @@ cron_ensure_running()
 	[ "$SYSTEM" = "openwrt" ] && {
 		/etc/init.d/cron enable
 		/etc/init.d/cron start
+	}
+	[ "$SYSTEM" = "keenetic" ] && {
+		/opt/etc/init.d/S10cron start
 	}
 }
 
@@ -618,7 +623,7 @@ check_prerequisites_openwrt()
 			exitp 6
 		}
 	fi
-	
+
 	is_linked_to_busybox gzip && {
 		echo
 		echo your system uses default busybox gzip. its several times slower than GNU gzip.
@@ -686,4 +691,119 @@ select_fwtype()
 	}
 	echo select firewall type :
 	ask_list FWTYPE "iptables nftables" "$FWTYPE" && write_config_var FWTYPE
+}
+
+check_prerequisites_keenetic()
+{
+	echo \* checking prerequisites
+
+	local PKGS="curl" PKGS UPD=0
+
+	case "$FWTYPE" in
+		iptables)
+			PKGS="$PKGS"
+			[ "$DISABLE_IPV6" != "1" ] && PKGS="$PKGS"
+			;;
+		nftables)
+			PKGS="$PKGS"
+			[ "$DISABLE_IPV6" != "1" ] && PKGS="$PKGS"
+			;;
+	esac
+
+	if check_packages_openwrt $PKGS ; then
+		echo everything is present
+	else
+		echo \* installing prerequisites
+
+		opkg update
+		UPD=1
+		opkg install $PKGS || {
+			echo could not install prerequisites
+			exitp 6
+		}
+	fi
+
+	is_linked_to_busybox gzip && {
+		echo
+		echo your system uses default busybox gzip. its several times slower than GNU gzip.
+		echo ip/host list scripts will run much faster with GNU gzip
+		echo installer can install GNU gzip but it requires about 100 Kb space
+		if ask_yes_no N "do you want to install GNU gzip"; then
+			[ "$UPD" = "0" ] && {
+				opkg update
+				UPD=1
+			}
+			opkg install --force-overwrite gzip
+		fi
+	}
+	is_linked_to_busybox sort && {
+		echo
+		echo your system uses default busybox sort. its much slower and consumes much more RAM than GNU sort
+		echo ip/host list scripts will run much faster with GNU sort
+		echo installer can install GNU sort but it requires about 100 Kb space
+		if ask_yes_no N "do you want to install GNU sort"; then
+			[ "$UPD" = "0" ] && {
+				opkg update
+				UPD=1
+			}
+			opkg install --force-overwrite coreutils-sort
+		fi
+	}
+	is_linked_to_busybox grep && {
+		echo
+		echo your system uses default busybox grep. its damn infinite slow with -f option
+		echo get_combined.sh will be severely impacted
+		echo installer can install GNU grep but it requires about 0.5 Mb space
+		if ask_yes_no N "do you want to install GNU grep"; then
+			[ "$UPD" = "0" ] && {
+				opkg update
+				UPD=1
+			}
+			opkg install --force-overwrite grep
+
+			# someone reported device partially fail if /bin/grep is absent
+			# grep package deletes /bin/grep
+			[ -f /bin/grep ] || ln -s busybox /bin/grep
+		fi
+	}
+}
+
+install_keenetic_netfilter_hook()
+{
+		echo \* installing netfilter hook
+
+		[ -n "$MODE" ] || {
+			echo "should specify MODE in $ZAPRET_CONFIG"
+			exitp 7
+		}
+
+		echo "linking : $KEENETIC_NETFILTER_HOOK_SRC => $KEENETIC_NETFILTER_HOOK_DST"
+		ln -fs "$KEENETIC_NETFILTER_HOOK_SRC" "$KEENETIC_NETFILTER_HOOK_DST"
+}
+
+remove_keenetic_netfilter_hook()
+{
+	rm -f "$KEENETIC_NETFILTER_HOOK_DST"
+}
+
+service_install_keenetic()
+{
+	echo \* installing zapret service
+
+	ln -sf "$ZAPRET_BASE/init.d/keenetic/zapret" /opt/etc/init.d/S99zapret
+}
+
+service_start_keenetic()
+{
+	echo \* starting zapret service
+
+	"$INIT_SCRIPT_SRC" start
+}
+
+service_remove_keenetic()
+{
+	echo \* removing zapret service
+
+	rm -f /opt/etc/init.d/S99zapret
+	zapret_stop_daemons
 }

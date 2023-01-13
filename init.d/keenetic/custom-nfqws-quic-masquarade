@@ -1,0 +1,25 @@
+#!/bin/sh
+
+QNUM_QUIC=$(($QNUM+10))
+
+zapret_custom_daemons()
+{
+	local MODE_OVERRIDE=nfqws
+
+	zapret_do_daemons $1
+
+	do_nfqws $1 100 "--qnum=$QNUM_QUIC $NFQWS_OPT_DESYNC_QUIC"
+}
+
+zapret_custom_firewall()
+{
+	local MODE_OVERRIDE=nfqws
+
+	zapret_do_firewall_rules_ipt $1
+  fw_nfqws_quic_masquarade $1 "-p udp -m multiport --dports $QUIC_PORTS_IPT -m mark --mark $DESYNC_MARK/$DESYNC_MARK"
+}
+
+zapret_custom_firewall_nft()
+{
+	nft_fw_nfqws_quic_masquarade $1
+}

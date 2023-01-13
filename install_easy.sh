@@ -852,6 +852,30 @@ install_macos()
 	service_start_macos
 }
 
+install_keenetic()
+{
+  INIT_SCRIPT_SRC="$EXEDIR/init.d/keenetic/zapret"
+  KEENETIC_NETFILTER_HOOK_SRC="$EXEDIR/init.d/keenetic/netfilter.hook.sh"
+  KEENETIC_NETFILTER_HOOK_DST=/opt/etc/ndm/netfilter.d/zapret.sh
+
+  check_bins
+  require_root
+  check_location copy_all
+  install_binaries
+  check_dns
+  select_fwtype
+  check_prerequisites_keenetic
+  select_ipv6
+  ask_config
+  ask_config_offload
+  service_install_keenetic
+  download_list
+  crontab_del_quiet
+  crontab_add 0 6
+  cron_ensure_running
+  install_keenetic_netfilter_hook
+  service_start_keenetic
+}
 
 # build binaries, do not use precompiled
 [ "$1" = "make" ] && FORCE_BUILD=1
@@ -875,6 +899,9 @@ case $SYSTEM in
 		;;
 	openwrt)
 		install_openwrt
+		;;
+	keenetic)
+		install_keenetic
 		;;
 	macos)
 		install_macos
