@@ -2,7 +2,7 @@
 
 # Docs: https://github.com/ndmsystems/packages/wiki/Opkg-Component#ndmnetfilterd
 
-[ "$table" != "mangle" ] && exit 0
+[ "$table" != "mangle" ] && [ "$table" != "nat" ] && exit 0
 
 SCRIPT=$(readlink /opt/etc/init.d/S99zapret)
 
